@@ -42,9 +42,12 @@ public class PagamentoController {
     @PostMapping
     public ResponseEntity<PagamentoDto> cadastrar(@RequestBody @Valid PagamentoDto dto, UriComponentsBuilder uriBuilder) {
         PagamentoDto pagamento = service.criarPagamento(dto);
-        URI endereco = uriBuilder.path("/pagamentos/{id}").buildAndExpand(pagamento.getId()).toUri();
-        Message message = new Message(("Criei um pagamento com o ID " + pagamento.getId()).getBytes());
-        rabbitTemplate.send("pagamento.concluido", message);
+
+        URI endereco = uriBuilder
+                .path("/pagamentos/{id}")
+                .buildAndExpand(pagamento.getId())
+                .toUri();
+
         return ResponseEntity.created(endereco).body(pagamento);
     }
 
@@ -61,13 +64,12 @@ public class PagamentoController {
     }
 
     @PatchMapping("/{id}/confirmar")
-    @CircuitBreaker(name="atualizaPedido", fallbackMethod = "pagamentoAutorizadoComIntegracaoPendente")
-    public void confirmarPagamento(@PathVariable @NotNull Long id){
-        service.confirmarPagamento(id);
-    }
+    public ResponseEntity<Void> confirmarPagamento(@PathVariable @NotNull Long id) {
+        PagamentoDto pagamento = service.confirmarPagamento(id);
 
-    public void pagamentoAutorizadoComIntegracaoPendente(Long id, Exception e){
-        service.alteraStatus(id);
+        rabbitTemplate.convertAndSend("pagamento.concluido", pagamento);
+
+        return ResponseEntity.noContent().build();
     }
 
 
